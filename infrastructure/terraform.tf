@@ -6,7 +6,7 @@ terraform {
   backend "remote" {
     organization = "DEEP608v5"
     workspaces {
-      name = "<Insert your Terraform Cloud Workspace Name Here>"
+      name = "DEEP608v5-Lab-039"
     }
   }
 }
