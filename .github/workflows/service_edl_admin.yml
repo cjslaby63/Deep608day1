@@ -1,0 +1,55 @@
+# GitHub Workflow to build the 'EDL Admin' service using Docker
+
+# The 'EDL Admin' service is a Go (Golang) app that is used to
+# approve or deny requests from the 'Unblock Request' service.
+# This app reads the current list of requests from the Redis
+# database that the 'Unblock Request' service writes to.
+
+name: EDL Admin
+
+# Only run this Workflow for pull requests on branches or pushes to 'main'.
+# Limited to commits that make changes to the service's directory in the repo.
+on:
+  push:
+    branches: [ main ]
+    paths:
+    - 'services/edl-admin/**'
+  pull_request:
+    paths:
+    - 'services/edl-admin/**'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    env:
+      HASH: $(git rev-parse --short "$GITHUB_SHA")
+      PROJECT_ID: ${{ secrets.PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          service_account_key: ${{ secrets.GCP_TERRAFORM_SVC_ACCT }}
+          project_id: ${{ secrets.PROJECT_ID }}
+          export_default_credentials: true
+
+      - name: Build
+        working-directory: ./services/edl-admin
+        run: |-
+          docker build -t gcr.io/$PROJECT_ID/edl-admin:$GITHUB_SHA -t gcr.io/$PROJECT_ID/edl-admin:latest .
+
+      - name: Auth
+        working-directory: ./services/edl-admin
+        run: |
+          gcloud auth configure-docker -q
+
+      - name: Push
+        working-directory: ./services/edl-admin
+        run: |-
+          docker push gcr.io/$PROJECT_ID/edl-admin:$GITHUB_SHA
+          docker push gcr.io/$PROJECT_ID/edl-admin:latest

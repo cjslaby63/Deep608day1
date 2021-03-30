@@ -1,0 +1,54 @@
+# GitHub Workflow to build the 'Request Unblock' service using Docker
+
+# The 'Request Unblock' service is a Rust app that provides a web form
+# that users can use to submit a request to unblock a URL. Requests are
+# saved in a Redis database that the services can pull from.
+
+name: Request Unblock
+
+# Only run this Workflow for pull requests on branches or pushes to 'main'.
+# Limited to commits that make changes to the service's directory in the repo.
+on:
+  push:
+    branches: [ main ]
+    paths:
+    - 'services/request-unblock/**'
+  pull_request:
+    paths:
+    - 'services/request-unblock/**'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    env:
+      HASH: $(git rev-parse --short "$GITHUB_SHA")
+      PROJECT_ID: ${{ secrets.PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          service_account_key: ${{ secrets.GCP_TERRAFORM_SVC_ACCT }}
+          project_id: ${{ secrets.PROJECT_ID }}
+          export_default_credentials: true
+
+      - name: Build
+        working-directory: ./services/request-unblock
+        run: |-
+          docker build -t gcr.io/$PROJECT_ID/request-unblock:$GITHUB_SHA -t gcr.io/$PROJECT_ID/request-unblock:latest .
+
+      - name: Auth
+        working-directory: ./services/request-unblock
+        run: |
+          gcloud auth configure-docker -q
+
+      - name: Push
+        working-directory: ./services/request-unblock
+        run: |-
+          docker push gcr.io/$PROJECT_ID/request-unblock:$GITHUB_SHA
+          docker push gcr.io/$PROJECT_ID/request-unblock:latest
