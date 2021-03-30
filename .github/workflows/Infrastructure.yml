@@ -1,5 +1,8 @@
+# GitHub Workflow to build the GCP & Kubernetes Infrastructure
 name: Infrastructure
 
+# Only run this Workflow for pull requests on branches or pushes to 'main'.
+# Limited to commits that make changes to the infrastructure directory in the repo.
 on:
   push:
     branches: [ main ]
@@ -9,21 +12,21 @@ on:
     paths:
     - 'infrastructure/**'
 
-    jobs:
-  deploy: # Job identifier; can be used to reference this job
-    name: Deploy # Display name for the job
-    runs-on: ubuntu-latest # We want this job to execute on an Ubuntu Linux machine
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
 
-    steps: # Each action that our pipeline takes will be defined as a step
-    - name: Checkout # Our first step is to checkout our code!
+    steps:
+    - name: Checkout
       uses: actions/checkout@v2
 
-      - name: Setup Terraform # Name of the step
-      uses: hashicorp/setup-terraform@v1 # Name of the Action to use
-      with: # Parameters for the Action
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-        - name: Terraform Format
+    - name: Terraform Format
       id: fmt
       working-directory: ./infrastructure
       run: terraform fmt -check
@@ -41,7 +44,7 @@ on:
       run: terraform plan -no-color
       continue-on-error: true
 
-      - uses: actions/github-script@0.9.0
+    - uses: actions/github-script@0.9.0
       if: github.event_name == 'pull_request'
       env:
         PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
@@ -51,7 +54,7 @@ on:
           const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
           #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
           #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-          <details>
+          ####<details>
           ####<summary>Show Plan</summary>
           ####```
           ####${process.env.PLAN}
@@ -67,11 +70,11 @@ on:
             body: output
           })
 
-          - name: Terraform Plan Status
+    - name: Terraform Plan Status
       if: steps.plan.outcome == 'failure'
       run: exit 1
 
-      - name: Terraform Apply
+    - name: Terraform Apply
       working-directory: ./infrastructure
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform apply -auto-approve

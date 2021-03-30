@@ -1,5 +1,13 @@
+# GitHub Workflow to build the 'Block Page' service using Docker
+
+# The 'Block Page' service is a static HTML page in a Nginx Container.
+# It simulates a NGFW URL Filter block page. This page has a link to
+# a web form on the 'Request Unblock' service.
+
 name: Block Page
 
+# Only run this Workflow for pull requests on branches or pushes to 'main'.
+# Limited to commits that make changes to the service's directory in the repo.
 on:
   push:
     branches: [ main ]
@@ -9,7 +17,7 @@ on:
     paths:
     - 'services/block-page/**'
 
-    jobs:
+jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -22,23 +30,23 @@ on:
       - name: Checkout
         uses: actions/checkout@v2
 
-        - name: Set up gcloud
+      - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@master
         with:
           service_account_key: ${{ secrets.GCP_TERRAFORM_SVC_ACCT }}
           project_id: ${{ secrets.PROJECT_ID }}
           export_default_credentials: true
 
-          - name: Build
+      - name: Build
         working-directory: ./services/block-page
         run: |-
           docker build -t gcr.io/$PROJECT_ID/block-page:$GITHUB_SHA -t gcr.io/$PROJECT_ID/block-page:latest .
-          
+
       - name: Auth
         working-directory: ./services/block-page
         run: |
           gcloud auth configure-docker -q
-          
+
       - name: Push
         working-directory: ./services/block-page
         run: |-
