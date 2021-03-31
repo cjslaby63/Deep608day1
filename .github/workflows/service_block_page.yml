@@ -9,6 +9,7 @@ name: Block Page
 # Only run this Workflow for pull requests on branches or pushes to 'main'.
 # Limited to commits that make changes to the service's directory in the repo.
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
