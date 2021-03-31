@@ -1,0 +1,16 @@
+failure_criteria_for_creating_checks:
+  high: 1
+  medium: 1
+  low: 1
+  operator: or
+
+failure_criteria_for_creating_issues:
+  high: 1
+  medium: 1
+  low: 1
+  operator: or
+
+github_asset_name: "Github Asset Dev"
+
+tags:
+- env:Lab
