@@ -75,3 +75,42 @@ resource "kubernetes_service" "edl" {
     type = "ClusterIP"
   }
 }
+# Setup our subdomain with Ambassador and request an SSL certificate from Lets Encrypt
+# https://www.getambassador.io/docs/latest/topics/running/host-crd/
+resource "kubernetes_manifest" "edl-host" {
+  provider = kubernetes-alpha
+  manifest = {
+    "apiVersion" = "getambassador.io/v2"
+    "kind"       = "Host"
+    "metadata" = {
+      "name"      = "edl-host"
+      "namespace" = "ambassador"
+    }
+    "spec" = {
+      "hostname" = local.edl_dns
+      "acmeProvider" = {
+        "email" = local.acme_contact
+      }
+    }
+  }
+}
+
+# Create a Layer 7 route that maps our subdomain to the 'edl' Kubernetes Service
+# https://www.getambassador.io/docs/latest/topics/using/intro-mappings/
+resource "kubernetes_manifest" "edl-mapping" {
+  provider = kubernetes-alpha
+  manifest = {
+    "apiVersion" = "getambassador.io/v2"
+    "kind"       = "Mapping"
+    "metadata" = {
+      "name"      = "edl-backend"
+      "namespace" = "ambassador"
+    }
+    "spec" = {
+      "host"       = local.edl_dns
+      "prefix"     = "/"
+      "service"    = "edl.default" # <Service Name>.<Namespace>
+      "timeout_ms" = 30000
+    }
+  }
+}

@@ -75,3 +75,99 @@ resource "kubernetes_service" "request-unblock" {
     type = "ClusterIP"
   }
 }
+# Setup our subdomain with Ambassador and request an SSL certificate from Lets Encrypt
+# https://www.getambassador.io/docs/latest/topics/running/host-crd/
+resource "kubernetes_manifest" "request-unblock-host" {
+  provider = kubernetes-alpha
+  manifest = {
+    "apiVersion" = "getambassador.io/v2"
+    "kind"       = "Host"
+    "metadata" = {
+      "name"      = "request-unblock-host"
+      "namespace" = "ambassador"
+    }
+    "spec" = {
+      "hostname" = local.request_unblock_dns
+      "acmeProvider" = {
+        "email" = local.acme_contact
+      }
+    }
+  }
+}
+
+# Create a Layer 7 route that maps our subdomain to the 'request-unblock' Kubernetes Service
+# https://www.getambassador.io/docs/latest/topics/using/intro-mappings/
+resource "kubernetes_manifest" "request-unblock-mapping" {
+  provider = kubernetes-alpha
+  manifest = {
+    "apiVersion" = "getambassador.io/v2"
+    "kind"       = "Mapping"
+    "metadata" = {
+      "name"      = "request-unblock-backend"
+      "namespace" = "ambassador"
+    }
+    "spec" = {
+      "host"       = local.request_unblock_dns
+      "prefix"     = "/"
+      "service"    = "request-unblock.default" # <Service Name>.<Namespace>
+      "timeout_ms" = 30000
+    }
+  }
+}
+
+# Setup an Ambassador Filter that requires authentication via Okta
+# https://www.getambassador.io/docs/latest/topics/using/filters/
+# https://www.getambassador.io/docs/latest/howtos/sso/okta/
+resource "kubernetes_manifest" "request-unblock-filter" {
+  provider = kubernetes-alpha
+  manifest = {
+    "apiVersion" = "getambassador.io/v2"
+    "kind"       = "Filter"
+    "metadata" = {
+      "name"      = "request-unblock-filter"
+      "namespace" = "ambassador"
+    }
+    "spec" = {
+      "OAuth2" = {
+        "authorizationURL" = local.okta_auth_url
+        "audience"         = "api://default"
+        "clientID"         = var.okta_user_app_client_id
+        "secret"           = var.okta_user_app_client_secret
+        "injectRequestHeaders" = [{
+          "name"  = "X-USERNAME"
+          "value" = "{{ .token.Claims.sub }}"
+        }]
+        "protectedOrigins" = [{
+          "origin" = "https://${local.request_unblock_dns}"
+        }]
+      }
+    }
+  }
+}
+
+# Map our Okta Filter to the 'request-unblock' subdomain
+# https://www.getambassador.io/docs/latest/topics/using/filters/
+# https://www.getambassador.io/docs/latest/howtos/sso/okta/
+resource "kubernetes_manifest" "request-unblock-filter-policy" {
+  provider = kubernetes-alpha
+  manifest = {
+    "apiVersion" = "getambassador.io/v2"
+    "kind"       = "FilterPolicy"
+    "metadata" = {
+      "name"      = "request-unblock-filter-policy"
+      "namespace" = "ambassador"
+    }
+    "spec" = {
+      "rules" = [{
+        "host" = local.request_unblock_dns
+        "path" = "*"
+        "filters" = [{
+          "name" = "request-unblock-filter"
+          "arguments" = {
+            "scope" = ["openid", "profile"]
+          }
+        }]
+      }]
+    }
+  }
+}
